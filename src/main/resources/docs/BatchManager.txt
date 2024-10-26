@@ -1,0 +1,130 @@
+# Migration Guide: Amazon SQS from AWS SDK Java 1.x to 2.x
+
+
+AmazonSQSBufferedAsyncClient should be replaced with SqsAsyncBatchManager of aws sdk java 2.x while migrating
+This migration guide aims to help you transition from Amazon SQS Buffered Asynchronous Client (`AmazonSQSBufferedAsyncClient`) in AWS SDK Java 1.x to the `SqsAsyncBatchManager` in AWS SDK Java 2.x. Below, you will find key changes, concepts, and examples to help facilitate your migration.
+
+## Key Changes Overview
+
+### 1. Package Changes
+- **Java 1.x** uses `com.amazonaws.services.sqs.*`.
+- **Java 2.x** has migrated to `software.amazon.awssdk.services.sqs.*`.
+
+### 2. Client Classes and Batching Management
+- **Java 1.x**: `AmazonSQSBufferedAsyncClient` allows client-side buffering of requests to batch them automatically.
+- **Java 2.x**: `SqsAsyncBatchManager` is used for client-side buffering and request batching. This new approach has enhanced configuration options and a cleaner API.
+
+### 3. Builder Pattern
+- Java 2.x extensively uses a builder pattern to create client instances, allowing more customization compared to Java 1.x.
+
+### 4. CompletableFuture Usage
+- Java 2.x emphasizes asynchronous programming using `CompletableFuture`, which replaces the `Future` type in Java 1.x for async operations.
+
+## Migration Steps
+
+### Step 1: Setting Up Dependencies
+Ensure you include the correct dependencies in your `pom.xml`. For Java 2.x, add:
+```xml
+<dependency>
+    <groupId>software.amazon.awssdk</groupId>
+    <artifactId>sqs</artifactId>
+    <version>2.28.0</version>
+</dependency>
+```
+
+### Step 2: Creating Clients
+- **Java 1.x** Example:
+  ```java
+  final AmazonSQSAsync sqsAsync = new AmazonSQSAsyncClient();
+  final AmazonSQSAsync bufferedSqs = new AmazonSQSBufferedAsyncClient(sqsAsync);
+  ```
+- **Java 2.x** Equivalent:
+  ```java
+  SqsAsyncBatchManager batchManager = SqsAsyncBatchManager.builder()
+      .client(SqsAsyncClient.create())
+      .scheduledExecutor(Executors.newScheduledThreadPool(4))
+      .overrideConfiguration(b -> b
+          .receiveMessageMinWaitDuration(Duration.ofMillis(50))
+          .receiveMessageVisibilityTimeout(Duration.ofSeconds(30)))
+      .build();
+  ```
+  In Java 2.x, `SqsAsyncBatchManager` uses a builder pattern to create a client with additional customization options.
+
+### Step 3: Sending Messages
+- **Java 1.x**:
+  ```java
+  SendMessageRequest request = new SendMessageRequest()
+      .withQueueUrl("https://sqs.us-east-1.amazonaws.com/123456789012/MyQueue")
+      .withMessageBody("Your message text");
+  Future<SendMessageResult> sendResult = bufferedSqs.sendMessageAsync(request);
+  ```
+- **Java 2.x**:
+  ```java
+  CompletableFuture<SendMessageResponse> sendMessageFuture =
+      batchManager.sendMessage(request ->
+          request.messageBody("Your message text")
+                 .queueUrl("https://sqs.us-east-1.amazonaws.com/123456789012/MyQueue"));
+  sendMessageFuture.thenAccept(response -> {
+      System.out.println("Message sent successfully. Message ID: " + response.messageId());
+  }).exceptionally(throwable -> {
+      System.err.println("Failed to send message: " + throwable.getMessage());
+      return null;
+  });
+  ```
+  The `CompletableFuture` class in Java 2.x provides a more modern way to handle async results, making it easier to compose and chain operations.
+
+### Step 4: Receiving Messages
+- **Java 1.x**:
+  ```java
+  ReceiveMessageRequest receiveRq = new ReceiveMessageRequest()
+      .withMaxNumberOfMessages(1)
+      .withQueueUrl("https://sqs.us-east-1.amazonaws.com/123456789012/MyQueue");
+  ReceiveMessageResult rx = bufferedSqs.receiveMessage(receiveRq);
+  ```
+- **Java 2.x**:
+  ```java
+  CompletableFuture<ReceiveMessageResponse> receiveMessageFuture =
+      batchManager.receiveMessage(request ->
+          request.queueUrl("https://sqs.us-east-1.amazonaws.com/123456789012/MyQueue"));
+  receiveMessageFuture.thenAccept(response -> {
+      response.messages().forEach(message ->
+          System.out.println("Received message: " + message.body())
+      );
+  }).exceptionally(throwable -> {
+      System.err.println("Failed to receive messages: " + throwable.getMessage());
+      return null;
+  });
+  ```
+
+### Step 5: Deleting Messages
+- **Java 1.x**:
+  ```java
+  Future<DeleteMessageResult> deleteMessageFuture =
+      bufferedSqs.deleteMessageAsync(new DeleteMessageRequest()
+          .withQueueUrl("https://sqs.us-east-1.amazonaws.com/123456789012/MyQueue")
+          .withReceiptHandle("ReceiptHandle"));
+  ```
+- **Java 2.x**:
+  ```java
+  CompletableFuture<DeleteMessageResponse> deleteMessageFuture =
+      batchManager.deleteMessage(request ->
+          request.receiptHandle("ReceiptHandle")
+                 .queueUrl("https://sqs.us-east-1.amazonaws.com/123456789012/MyQueue"));
+  deleteMessageFuture.thenAccept(response -> {
+      System.out.println("Message deleted successfully.");
+  }).exceptionally(throwable -> {
+      System.err.println("Failed to delete message: " + throwable.getMessage());
+      return null;
+  });
+  ```
+
+### Step 6: Customizing BatchManager
+The configuration options in `SqsAsyncBatchManager` allow better control over message batching:
+- **Java 1.x**: `QueueBufferConfig` for configuring batch properties.
+- **Java 2.x**: Use the `SqsAsyncBatchManager.Builder` and `overrideConfiguration` to customize parameters like `maxBatchSize`, `sendRequestFrequency`, and `receiveMessageVisibilityTimeout`.
+
+## Conclusion
+Migrating from AWS SDK Java 1.x to 2.x for Amazon SQS brings enhanced flexibility, a modernized API, and greater customization options. Use the above examples to help ease the transition and refactor your code to align with the builder-based approach in Java 2.x.
+
+For additional details, refer to the [AWS Java Developer Guide](https://docs.aws.amazon.com/sdk-for-java/latest/developer-guide/home.html).
+

@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>AWS SDK Conversion</title>
+</head>
+<body>
+<h1>Upload Java Code for AWS SDK v1 to v2 Conversion</h1>
+<form method="POST" action="/convert" enctype="multipart/form-data">
+    <label for="file">Select Java File:</label>
+    <input type="file" id="file" name="file" accept=".java" required>
+    <br><br>
+    <button type="submit">Convert</button>
+</form>
+</body>
+</html>

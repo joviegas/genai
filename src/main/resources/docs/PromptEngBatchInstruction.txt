@@ -1,0 +1,66 @@
+""
+        Migrate the following code from AWS SDK Java 1.x to AWS SDK Java 2.x. Follow these migration steps carefully:
+
+        # Migration Guide: Amazon SQS from AWS SDK Java 1.x to 2.x
+
+        This migration guide helps transition from `AmazonSQSBufferedAsyncClient` in AWS SDK Java 1.x to `SqsAsyncBatchManager` in AWS SDK Java 2.x. Use the migration steps below to replace different aspects of the SQS client:
+
+        ## Migration Instructions:
+
+        1. **Replace `AmazonSQSBufferedAsyncClient`** with:
+           ```java
+           SqsAsyncBatchManager batchManager = SqsAsyncBatchManager.builder()
+               .client(SqsAsyncClient.create())
+               .scheduledExecutor(Executors.newScheduledThreadPool(4))
+               .overrideConfiguration(b -> b
+                   .receiveMessageMinWaitDuration(Duration.ofMillis(50))
+                   .receiveMessageVisibilityTimeout(Duration.ofSeconds(30)))
+               .build();
+           ```
+
+        2. **Replace Client Creation**:
+           Replace the following client creation code:
+           ```java
+           final AmazonSQSAsync sqsAsync = new AmazonSQSAsyncClient();
+           final AmazonSQSAsync bufferedSqs = new AmazonSQSBufferedAsyncClient(sqsAsync);
+           ```
+           with the above `SqsAsyncBatchManager` setup.
+
+        3. **Replace Message Handling**:
+
+           - **Sending Messages**:
+             Replace:
+             ```java
+             Future<SendMessageResult> sendResult = bufferedSqs.sendMessageAsync(request);
+             ```
+             with:
+             ```java
+             CompletableFuture<SendMessageResponse> sendMessageFuture = batchManager.sendMessage(request -> request.messageBody("Your message text").queueUrl("QueueURL"));
+             ```
+
+           - **Receiving Messages**:
+             Replace:
+             ```java
+             ReceiveMessageResult rx = bufferedSqs.receiveMessage(receiveRq);
+             ```
+             with:
+             ```java
+             CompletableFuture<ReceiveMessageResponse> receiveMessageFuture = batchManager.receiveMessage(request -> request.queueUrl("QueueURL"));
+             ```
+
+           - **Deleting Messages**:
+             Replace:
+             ```java
+             Future<DeleteMessageResult> deleteMessageFuture = bufferedSqs.deleteMessageAsync(request);
+             ```
+             with:
+             ```java
+             CompletableFuture<DeleteMessageResponse> deleteMessageFuture = batchManager.deleteMessage(request -> request.queueUrl("QueueURL").receiptHandle("ReceiptHandle"));
+             ```
+
+        4. **Batching Configuration**:
+           Use `SqsAsyncBatchManager.Builder` and `overrideConfiguration` to set batch parameters as per your requirements.
+
+        ## Task:
+        Apply the above migration steps to the given code snippet:
+        ""
